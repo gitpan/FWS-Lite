@@ -9,11 +9,11 @@ FWS::Lite - Lightweight access to FWS methodologies and installations
 
 =head1 VERSION
 
-Version 0.001
+Version 0.002
 
 =cut
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 
 =head1 SYNOPSIS
@@ -22,20 +22,16 @@ our $VERSION = '0.001';
 
 	#
 	# Create FWS with MySQL connectivity
-	# (GUIDNameSpace is not required for non-enterprise level installs)
 	#	
 	my $fws = FWS::Lite->new(	DBName		=> "theDBName",
 					DBUser		=> "myUser",
-					DBPassword	=> "myPass",
-					DBHost		=> "localhost",
-					GUIDNameSpace	=> "www.domain.com");
+					DBPassword	=> "myPass");
 
 	#
 	# create FWS with SQLite connectivity
 	#
-	my $fws = FWS::Lite->new(	DBType		=> "SQLite",
-					DBName		=> "/home/user/your.db",
-					GUIDNameSpace	=> "www.domain.com");
+	my $fws2 = FWS::Lite->new(	DBType		=> "SQLite",
+					DBName		=> "/home/user/your.db");
 
 
 
@@ -45,22 +41,78 @@ This module provides basic input and output to a FrameWork Sites installation or
 
 =head1 CONSTRUCTOR
 
-Most uses of the FWS in the context of using FWS::Lite are accessing data from live FWS installations and do not require: filePath, secureFilePath or siteId.   These can be set for completeness or for the ability to run native FWS Code via FWS::Lite for testing that needs these set to determine location and site context.   GUIDNameSpace is only used when you have Data::UUID installed and even then isn't required unless you are doing migrations with enterprise level data.  
+Most uses of the FWS in the context of using FWS::Lite are accessing data from live FWS installations and do not require: filePath, secureFilePath or siteId.   These can be set for completeness or for the ability to run native FWS Code via FWS::Lite for testing that needs these set to determine location and site context.   
 
 =head2 new
 
-	my $fws->new(
-		DBName 		=> "DBNameOrSQLitePathAndFile", #required
-		DBUser 		=> "myDBUser",			#required
-		DBPassword 	=> "myDBPassword",		#required
-		DBHost 		=> "somePlace.somewhere.com", 	#default: localhost
-		DBType 		=> "MySQL",			#default: MySQL
-		GUIDNameSpace	=> "url.NameSpaceDomain.com");	#optional unless enterprise 
-								#default: www.frameworksites.com
+	my $fws = $fws->new(
+		DBName 		=> "DBNameOrSQLitePathAndFile", # MySQL required
+		DBUser 		=> "myDBUser",			# MySQL required
+		DBPassword 	=> "myDBPassword",		# MySQL required
+		DBHost 		=> "somePlace.somewhere.com", 	# default: localhost
+		DBType 		=> "MySQL")			# default: MySQL
 
+Depending on if you are connecting to a MySQL or SQLite a combination of the following are required. 
+
+=over 4
+
+=item * DBName (MySQL and SQLite Required)
+
+For MySQL this is the DB Name.  For SQLite this is the DB file path and file name.
+MySQL example:  user_fws
+SQLite example: /home/user/secureFiles/user_fws.db
+
+=item * DBUser (MySQL Required)
+
+Required for MySQL and is the database user that has full grant access to the database.
+
+=item * DBPassword (MySQL Required)
+
+The DBUser's password.
+
+=item * DBHost (MySQL Required if your database is not on localhost)
+
+The DBHost will default to 'localhost' if not specified, but can be what ever is configured for the database environment.
+
+
+=item * DBType (SQLite Required)
+
+The DBType will default to 'MySQL' if not specified, but needs to be added if you are connecting to SQLite.
+
+=back
+
+Non-required paramaters for FWS installations can be added, but depending on the scope of your task they usually are not needed unless your testing code, or interacting with web elements that display rendered content from a stand alone script.
+
+=over 4
+
+=item * domain
+
+Full domain name with http prefix.  Example: http://www.example.com
+
+=item * filePath
+
+Full path name of common files. Example: /home/user/www/files
+
+=item * fileSecurePath 
+
+Full path name of non web accessible files. Example: /home/user/secureFiles
+
+=item * fileWebPath
+
+Web path for the same place filePath points to.  Example: /files
+
+=item * secureDomain
+
+Secure domain name with https prefix. For non-secure sites that do not have an SSL cert you can use the http:// prefix to disable SSL.  Example: https://www.example.com 
+
+=back
 
 =cut
 
+
+####################
+####### HIDE ####### FWS 2.0 Web import block 
+####################
 
 sub new {
         my($class,%paramHash) = @_;
@@ -79,24 +131,22 @@ sub new {
 		DBUser				=> '',
 		DBHost				=> '',
 		DBPassword			=> '',
-		GUIDNameSpace			=> 'www.frameworksites.com',
 	
 
 		#
-		# file paths and locations
-		# only here for completeness and compatability
+		# These are here for completeness
 		#	
 		filePath			=> './',
+		fileWebPath			=> '/files',
 		secureFilePath			=> './',
+		domain				=> './',
+		secureDomain			=> './',
 
 
 		#
-		# internal functions potentialy needed
-		# but set because some functions may want
-		# them at least better than undef
-		#
-		# Some are only used for web rendering
-		# but are here from completeness
+		# Internal functions potentialy need these
+		# and they are never set externally
+		# They are listed here for completeness
 		#
                 _saveWithSessionHash            => {},
                 _profileHash                    => {},
@@ -115,6 +165,10 @@ sub new {
 
 }
 
+####################
+##### END HIDE ##### FWS 2.0 Web import block 
+####################
+
 
 =head1 DATA METHODS
 
@@ -122,7 +176,7 @@ FWS methods that connect, read, write, reorder or alter the database itself.
 
 =head2 connectDBH
 
-Do the initial database connection via MySQL or SQLite.
+Do the initial database connection via MySQL or SQLite.  This method will return back the DBH it creates, but it is only here for completeness and would normally never be used.
 
 	$fws->connectDBH();
 
@@ -147,7 +201,11 @@ sub connectDBH {
         # set the DBH for use throughout the script
         #
         $self->{'_DBH'} = DBI->connect("DBI:".$connectString,$self->{'DBUser'}, $self->{'DBPassword'});
-	return 1;
+
+	#
+	# in case the user is going to do thier own thing, we will pass back the DBH
+	#
+	return $self->{'_DBH'};
 }
 
 
@@ -192,7 +250,7 @@ sub runSQL {
 	# based on a default setting
 	#
         my @data;
-	my $failFlag = 0;
+	my $errorResponse;
 
         #
         # use the dbh we were handed... if not use the default one.
@@ -207,7 +265,6 @@ sub runSQL {
 	#
 	# prepare the SQL and loop though the arrays
 	#
-	print "==".$paramHash{'SQL'}."\n";
 
         my $sth = $paramHash{'DBH'}->prepare($paramHash{'SQL'});
         if ($sth ne '') {
@@ -217,10 +274,7 @@ sub runSQL {
 		#
 		# clean way to get error response
 		#
-		my $errorResponse;
-		if (defined $DBI::errstr) { $errorResponse = $DBI::errstr }		
-
-		if ($errorResponse) { print "DB ERROR: ".$errorResponse."\n" }
+		if (defined $DBI::errstr) { $errorResponse .= $DBI::errstr }		
 
 		#
 		# set the row variable ready to be populated
@@ -263,11 +317,11 @@ sub runSQL {
 	# check if myDBH has been blanked - if so we have an error
 	# or I didn't have one to begin with
 	#
-	if ($failFlag) {
+	if ($errorResponse) {
 		#
 		# once FWSLog is enabled I can enable this
 		#
-		warn 'SQL ERROR: '.$paramHash{'SQL'};
+		warn 'SQL ERROR: '.$paramHash{'SQL'}. ' - '.$errorResponse;
 		#$self->FWSLog('SQL ERROR: '.$paramHash{'SQL'});
 	}
 
@@ -296,6 +350,10 @@ Alter a table to conform to the given definition without restriction.  The key w
 				default	=>"");			# '0000-00-00', 1, 'this default value'...
 
 =cut
+
+####################
+####### HIDE ####### FWS 2.0 Web import block 
+####################
 
 sub alterTable {
         my ($self, %paramHash) =@_;
@@ -402,6 +460,10 @@ sub alterTable {
 
         return $sqlReturn;
 }
+
+####################
+##### END HIDE ##### FWS 2.0 Web import block 
+####################
 
 =head2 tableFieldHash
 
@@ -515,7 +577,7 @@ FWS methods that use or manipulate text either for rendering or default populati
 
 =head2 createGUID
 
-Return a Globally Unique Identifier to be used to populate the guid field that is default on all FWS tables.
+Return a non repeatable Globally Unique Identifier to be used to populate the guid field that is default on all FWS tables.
 
         #
         # retrieve a guid to use with a new record
@@ -524,27 +586,21 @@ Return a Globally Unique Identifier to be used to populate the guid field that i
 
 =cut
 
+####################
+####### HIDE ####### FWS 2.0 Web import block 
+####################
+
 sub createGUID {
         my ($self) =@_;
-
-	#
-	# use the Data::UUID because its what we perfer... if not, do a lesser one that just shy of being as good
-	# but will work on most any unix server
-	#
 	my $guid;
-	eval {
-		require Data::UUID;
-		import Data::UUID;
-	   	my $ug = new Data::UUID;
-	   	$guid = $ug->create_from_name_str('NameSpace_URL', $self->{'GUIDNameSpace'});
-	};
-	
-	if($@) {
-		use Digest::SHA1 qw(sha1);
-		$guid = join '-', unpack( 'H8 H4 H4 H4 H12', sha1( shift() . shift() . time() . rand() . $< . $$ ) );
-	}
+	use Digest::SHA1 qw(sha1);
+	$guid = join('-', unpack('H8 H4 H4 H4 H12', sha1( shift().shift().time().rand().$<.$$)));
 	return $guid;
 }
+
+####################
+##### END HIDE ##### FWS 2.0 Web import block 
+####################
 
 =head2 createPassword
 
@@ -564,7 +620,6 @@ Return a random password or text key that can be used for temp password or uniqu
 ##################################################################
 sub createPassword {
 	my ($self, %paramHash) = @_;
-
 	my $returnString;
 	my @pass = split //,$paramHash{'composition'};
 	my $length = int(rand($paramHash{'highLengthy'} - $paramHash{'lowLength'} + 1)) + $paramHash{'lowLength'};
