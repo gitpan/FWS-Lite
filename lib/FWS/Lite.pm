@@ -5,16 +5,15 @@ use strict;
 
 =head1 NAME
 
-FWS::Lite - Lightweight access to FWS methodologies and installations
+FWS::Lite - Version independent access to Framework Sites installations and common methods
 
 =head1 VERSION
 
-Version 0.002
+Version 0.003
 
 =cut
 
-our $VERSION = '0.002';
-
+our $VERSION = '0.003';
 
 =head1 SYNOPSIS
 
@@ -37,11 +36,11 @@ our $VERSION = '0.002';
 
 =head1 DESCRIPTION
 
-This module provides basic input and output to a FrameWork Sites installation or can be used independently using the methodologies of FrameWork Sites data structures and file handling.
+This module provides basic input and output to a FrameWork Sites installation or can be used independently using the methodologies of FrameWork Sites data structures and file handling in a small package.
 
 =head1 CONSTRUCTOR
 
-Most uses of the FWS in the context of using FWS::Lite are accessing data from live FWS installations and do not require: filePath, secureFilePath or siteId.   These can be set for completeness or for the ability to run native FWS Code via FWS::Lite for testing that needs these set to determine location and site context.   
+Most uses of FWS::Lite are accessing data from live FWS installations and do not require anything but the database credentials.   All non-required settings can be set for completeness or for the ability to run native FWS Code via FWS::Lite for testing that needs these set to determine location and site context.   
 
 =head2 new
 
@@ -81,7 +80,7 @@ The DBType will default to 'MySQL' if not specified, but needs to be added if yo
 
 =back
 
-Non-required paramaters for FWS installations can be added, but depending on the scope of your task they usually are not needed unless your testing code, or interacting with web elements that display rendered content from a stand alone script.
+Non-required parameters for FWS installations can be added, but depending on the scope of your task they usually are not needed unless your testing code, or interacting with web elements that display rendered content from a stand alone script.
 
 =over 4
 
@@ -115,54 +114,10 @@ Secure domain name with https prefix. For non-secure sites that do not have an S
 ####################
 
 sub new {
-        my($class,%paramHash) = @_;
-
-        #
-        # for good housekeeping these are all the parameters the class would ever use
-	# all system used non configurable keys begin with _ and user defined ones do not
-        #
-        my $self = {
-
-		#
-		# database settings
-		#
-		DBType				=> 'mysql',
-		DBName				=> '',
-		DBUser				=> '',
-		DBHost				=> '',
-		DBPassword			=> '',
-	
-
-		#
-		# These are here for completeness
-		#	
-		filePath			=> './',
-		fileWebPath			=> '/files',
-		secureFilePath			=> './',
-		domain				=> './',
-		secureDomain			=> './',
-
-
-		#
-		# Internal functions potentialy need these
-		# and they are never set externally
-		# They are listed here for completeness
-		#
-                _saveWithSessionHash            => {},
-                _profileHash                    => {},
-                _securityHash                   => {},
-		_DBH				=> undef
-                };
+        my $class = shift;
+	my $self = {@_};
         bless $self, $class;
-
-	#
-	# set all params that were passed to me
-	#
-	for my $param (keys %{$self}) { 
-		if (exists $paramHash{$param}) { $self->{$param} = $paramHash{$param} }
-	}
 	return $self;
-
 }
 
 ####################
@@ -176,7 +131,7 @@ FWS methods that connect, read, write, reorder or alter the database itself.
 
 =head2 connectDBH
 
-Do the initial database connection via MySQL or SQLite.  This method will return back the DBH it creates, but it is only here for completeness and would normally never be used.
+Do the initial database connection via MySQL or SQLite.  This method will return back the DBH it creates, but it is only here for completeness and would normally never be used.  For FWS database routines this is not required as it will be implied when executing those methods..
 
 	$fws->connectDBH();
 
@@ -184,28 +139,37 @@ Do the initial database connection via MySQL or SQLite.  This method will return
 
 sub connectDBH {
         my ($self) = @_;
-
-        use DBI;
-
-        #
-        # default set to mysql
-        #
-        my $connectString = $self->{'DBType'}.":".$self->{'DBName'}.":".$self->{'DBHost'}.":3306";
-
-        #
-        # SQLite
-        #
-        if ($self->{'DBType'} =~ /SQLite/i) { $connectString = "SQLite:".$self->{'DBName'} }
-
-        #
-        # set the DBH for use throughout the script
-        #
-        $self->{'_DBH'} = DBI->connect("DBI:".$connectString,$self->{'DBUser'}, $self->{'DBPassword'});
-
+	
 	#
-	# in case the user is going to do thier own thing, we will pass back the DBH
+	# grab the DBI if we don't have it yet
 	#
-	return $self->{'_DBH'};
+	if (!defined $self->{'_DBH'}) {
+
+		#
+		# hook up with some DBI
+		#	
+	        use DBI;
+	
+	        #
+	        # default set to mysql
+	        #
+	        my $connectString = $self->{'DBType'}.":".$self->{'DBName'}.":".$self->{'DBHost'}.":3306";
+	
+	        #
+	        # SQLite
+	        #
+	        if ($self->{'DBType'} =~ /SQLite/i) { $connectString = "SQLite:".$self->{'DBName'} }
+	
+	        #
+	        # set the DBH for use throughout the script
+	        #
+	        $self->{'_DBH'} = DBI->connect("DBI:".$connectString,$self->{'DBUser'}, $self->{'DBPassword'});
+	
+		#
+		# in case the user is going to do thier own thing, we will pass back the DBH
+		#
+		return $self->{'_DBH'};
+	}
 }
 
 
@@ -243,6 +207,8 @@ Return an reference to an array that contains the results of the SQL ran.
 
 sub runSQL {
         my ($self,%paramHash) = @_;
+	
+	$self->connectDBH();
 
 	# 
 	# Get this data array ready to slurp
@@ -444,6 +410,19 @@ sub alterTable {
                 $self->runSQL(SQL=>$addStatement);
                 $sqlReturn .= $addStatement.";\n";
         }
+
+        #
+        # change the datatype if we are talking about MySQL 
+        #
+	my $changeStatement     = "alter table ".$table." change ".$field." ".$field." ".$type." NOT NULL default ".$default;
+        if ($type ne $tableFieldHash->{$field}{"type"} && $self->DBType() =~ /^mysql$/i) {
+                $self->runSQL(SQL=>$changeStatement);
+                $sqlReturn .= $changeStatement."; ";
+                }
+
+	#
+	# need to add change syntax for SQLlite TODO
+	#
 
        	#
 	# Set a default for the index

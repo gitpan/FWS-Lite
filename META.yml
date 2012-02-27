@@ -1,5 +1,5 @@
 ---
-abstract: 'Lightweight access to FWS methodologies and installations'
+abstract: 'Version independent access to Framework Sites installations and common methods'
 author:
   - 'Nate Lewis <nlewis@gnetworks.com>'
 build_requires:
@@ -21,4 +21,4 @@ requires:
   DBI: 0
   Digest::SHA1: 0
   Test::More: 0
-version: 0.002
+version: 0.003
