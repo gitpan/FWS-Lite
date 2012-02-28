@@ -9,11 +9,11 @@ FWS::Lite - Version independent access to Framework Sites installations and comm
 
 =head1 VERSION
 
-Version 0.003
+Version 0.004
 
 =cut
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 =head1 SYNOPSIS
 
@@ -414,8 +414,8 @@ sub alterTable {
         #
         # change the datatype if we are talking about MySQL 
         #
-	my $changeStatement     = "alter table ".$table." change ".$field." ".$field." ".$type." NOT NULL default ".$default;
-        if ($type ne $tableFieldHash->{$field}{"type"} && $self->DBType() =~ /^mysql$/i) {
+	my $changeStatement     = "alter table ".$paramHash{'table'}." change ".$paramHash{'field'}." ".$paramHash{'field'}." ".$paramHash{'type'}." NOT NULL default ".$paramHash{'default'};
+        if ($paramHash{'type'} ne $tableFieldHash->{$paramHash{'field'}}{"type"} && $self->DBType() =~ /^mysql$/i) {
                 $self->runSQL(SQL=>$changeStatement);
                 $sqlReturn .= $changeStatement."; ";
                 }
